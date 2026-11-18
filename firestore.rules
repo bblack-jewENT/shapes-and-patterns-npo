@@ -1,0 +1,533 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global Hardened Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'mosesrametsi16@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidOrg(orgId) {
+      return orgId is string && orgId == 'shapes-and-patterns-npo';
+    }
+
+    function isValidPillar(pillar) {
+      return pillar is string && pillar in ['learn', 'create', 'empower'];
+    }
+
+    // 3. Entity Validation Blueprints (No existing() or diff() allowed here)
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['uid', 'email', 'notificationDigest', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'phone', 'notificationDigest', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 32))
+        && data.notificationDigest is string && data.notificationDigest in ['daily', 'weekly', 'none']
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMemberProfile(data) {
+      return data.keys().hasAll(['uid', 'orgId', 'displayName', 'role', 'pillarFocus', 'joinedAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'orgId', 'displayName', 'photoURL', 'role', 'pillarFocus', 'title', 'bio', 'joinedAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && isValidOrg(data.orgId)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.role is string && data.role in ['admin', 'lead', 'educator', 'volunteer']
+        && data.pillarFocus is string && data.pillarFocus in ['learn', 'create', 'empower', 'operations']
+        && (!('title' in data) || (data.title is string && data.title.size() <= 80))
+        && (!('bio' in data) || (data.bio is string && data.bio.size() <= 280))
+        && data.joinedAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['id', 'orgId', 'title', 'description', 'pillar', 'status', 'leadId', 'leadName', 'targetDate', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'orgId', 'title', 'description', 'pillar', 'status', 'leadId', 'leadName', 'targetDate', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidOrg(data.orgId)
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 120
+        && data.description is string && data.description.size() <= 1000
+        && isValidPillar(data.pillar)
+        && data.status is string && data.status in ['planning', 'active', 'completed']
+        && isValidId(data.leadId)
+        && data.leadName is string && data.leadName.size() >= 1 && data.leadName.size() <= 80
+        && data.targetDate is string && data.targetDate.size() <= 20 && data.targetDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['id', 'orgId', 'projectId', 'title', 'description', 'pillar', 'status', 'priority', 'assigneeId', 'assigneeName', 'dueDate', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'orgId', 'projectId', 'title', 'description', 'pillar', 'status', 'priority', 'assigneeId', 'assigneeName', 'dueDate', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidOrg(data.orgId)
+        && isValidId(data.projectId)
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 140
+        && data.description is string && data.description.size() <= 1000
+        && isValidPillar(data.pillar)
+        && data.status is string && data.status in ['planned', 'in_progress', 'review', 'completed']
+        && data.priority is string && data.priority in ['low', 'medium', 'high']
+        && data.assigneeId is string && data.assigneeId.size() <= 128 && data.assigneeId.matches('^[a-zA-Z0-9_\\-]*$')
+        && data.assigneeName is string && data.assigneeName.size() <= 80
+        && data.dueDate is string && data.dueDate.size() <= 20
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTaskComment(data) {
+      return data.keys().hasAll(['id', 'taskId', 'orgId', 'authorId', 'authorName', 'body', 'createdAt'])
+        && data.keys().hasOnly(['id', 'taskId', 'orgId', 'authorId', 'authorName', 'body', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.taskId)
+        && isValidOrg(data.orgId)
+        && isValidId(data.authorId)
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80
+        && data.body is string && data.body.size() >= 1 && data.body.size() <= 600
+        && data.createdAt is timestamp;
+    }
+
+    function isValidPatternBoard(data) {
+      return data.keys().hasAll(['id', 'orgId', 'title', 'description', 'pillar', 'cols', 'rows', 'tiles', 'createdBy', 'lastEditedByName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'orgId', 'title', 'description', 'pillar', 'cols', 'rows', 'tiles', 'createdBy', 'lastEditedByName', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidOrg(data.orgId)
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 100
+        && data.description is string && data.description.size() <= 400
+        && isValidPillar(data.pillar)
+        && data.cols is int && data.cols >= 4 && data.cols <= 16
+        && data.rows is int && data.rows >= 4 && data.rows <= 12
+        && data.tiles is list && data.tiles.size() <= 96
+        && (data.tiles.size() == 0 || data.tiles[0] is map)
+        && isValidId(data.createdBy)
+        && data.lastEditedByName is string && data.lastEditedByName.size() >= 1 && data.lastEditedByName.size() <= 80
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidChannel(data) {
+      return data.keys().hasAll(['id', 'orgId', 'name', 'topic', 'pillar', 'createdBy', 'createdAt'])
+        && data.keys().hasOnly(['id', 'orgId', 'name', 'topic', 'pillar', 'createdBy', 'createdAt'])
+        && isValidId(data.id)
+        && isValidOrg(data.orgId)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 60
+        && data.topic is string && data.topic.size() <= 200
+        && data.pillar is string && data.pillar in ['learn', 'create', 'empower', 'general']
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidChannelMessage(data) {
+      return data.keys().hasAll(['id', 'channelId', 'orgId', 'authorId', 'authorName', 'authorRole', 'body', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'channelId', 'orgId', 'authorId', 'authorName', 'authorRole', 'body', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidId(data.channelId)
+        && isValidOrg(data.orgId)
+        && isValidId(data.authorId)
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80
+        && data.authorRole is string && data.authorRole.size() >= 1 && data.authorRole.size() <= 40
+        && data.body is string && data.body.size() >= 1 && data.body.size() <= 1000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidResourceItem(data) {
+      return data.keys().hasAll(['id', 'orgId', 'title', 'summary', 'pillar', 'resourceType', 'url', 'createdBy', 'authorName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'orgId', 'title', 'summary', 'pillar', 'resourceType', 'url', 'createdBy', 'authorName', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidOrg(data.orgId)
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 120
+        && data.summary is string && data.summary.size() <= 500
+        && isValidPillar(data.pillar)
+        && data.resourceType is string && data.resourceType in ['guide', 'template', 'worksheet', 'toolkit']
+        && data.url is string && data.url.size() <= 500
+        && isValidId(data.createdBy)
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidResourceBookmark(data) {
+      return data.keys().hasAll(['id', 'userId', 'orgId', 'resourceId', 'createdAt'])
+        && data.keys().hasOnly(['id', 'userId', 'orgId', 'resourceId', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.userId)
+        && isValidOrg(data.orgId)
+        && isValidId(data.resourceId)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidProjectComment(data) {
+      return data.keys().hasAll(['id', 'projectId', 'orgId', 'authorId', 'authorName', 'body', 'createdAt'])
+        && data.keys().hasOnly(['id', 'projectId', 'orgId', 'authorId', 'authorName', 'body', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.projectId)
+        && isValidOrg(data.orgId)
+        && isValidId(data.authorId)
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80
+        && data.body is string && data.body.size() >= 1 && data.body.size() <= 600
+        && data.createdAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'orgId', 'recipientId', 'senderId', 'senderName', 'type', 'title', 'message', 'projectId', 'taskId', 'read', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'orgId', 'recipientId', 'senderId', 'senderName', 'type', 'title', 'message', 'projectId', 'taskId', 'read', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidOrg(data.orgId)
+        && isValidId(data.recipientId)
+        && isValidId(data.senderId)
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80
+        && data.type is string && data.type in ['task_assigned', 'comment_mention']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 140
+        && data.message is string && data.message.size() <= 300
+        && data.projectId is string && data.projectId.size() <= 128 && data.projectId.matches('^[a-zA-Z0-9_\\-]*$')
+        && data.taskId is string && data.taskId.size() <= 128 && data.taskId.matches('^[a-zA-Z0-9_\\-]*$')
+        && (data.projectId.size() > 0 || data.taskId.size() > 0)
+        && data.read is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // 4. Collection Rules
+
+    // Admin registry (read-only for owner/admin; managed via console or server)
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isAdmin() && resource.data.uid is string;
+      allow write: if false;
+    }
+
+    // Private User PII
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.uid == request.auth.uid;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserPrivate(incoming())
+        && incoming().uid == userId
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isValidUserPrivate(incoming())
+        && (isOwner(userId) || isAdmin())
+        && incoming().uid == existing().uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'notificationDigest', 'updatedAt']);
+      allow delete: if isValidId(userId) && isAdmin();
+
+      // User Resource Bookmarks (Master Gate: parent resource must exist on create)
+      match /bookmarks/{resourceId} {
+        allow get: if isValidId(userId) && isValidId(resourceId) && isOwner(userId);
+        allow list: if isOwner(userId)
+          && resource.data.orgId == 'shapes-and-patterns-npo'
+          && resource.data.userId == userId;
+        allow create: if isValidId(userId)
+          && isValidId(resourceId)
+          && isOwner(userId)
+          && isValidResourceBookmark(incoming())
+          && incoming().id == resourceId
+          && incoming().resourceId == resourceId
+          && incoming().userId == userId
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/resources/$(resourceId));
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(resourceId) && isOwner(userId);
+      }
+    }
+
+    // Public Team Directory (Zero PII)
+    match /members/{userId} {
+      allow get: if isValidId(userId) && isVerifiedUser();
+      allow list: if isVerifiedUser() && resource.data.orgId == 'shapes-and-patterns-npo';
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidMemberProfile(incoming())
+        && incoming().uid == userId
+        && (isOwner(userId) || isAdmin())
+        && (isAdmin() || incoming().role in ['educator', 'volunteer'])
+        && incoming().joinedAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidMemberProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().orgId == existing().orgId
+        && incoming().joinedAt == existing().joinedAt
+        && incoming().updatedAt == request.time
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'role', 'pillarFocus', 'title', 'bio', 'updatedAt'])) ||
+          (isOwner(userId) && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'pillarFocus', 'title', 'bio', 'updatedAt']))
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // Collaborative NPO Projects
+    match /projects/{projectId} {
+      allow get: if isValidId(projectId) && isVerifiedUser();
+      allow list: if isVerifiedUser() && resource.data.orgId == 'shapes-and-patterns-npo';
+      allow create: if isValidId(projectId)
+        && isVerifiedUser()
+        && isValidProject(incoming())
+        && incoming().id == projectId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(projectId)
+        && isVerifiedUser()
+        && isValidProject(incoming())
+        && incoming().id == existing().id
+        && incoming().orgId == existing().orgId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (existing().status != 'completed' || isAdmin())
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'pillar', 'status', 'leadId', 'leadName', 'targetDate', 'updatedAt'])) ||
+          ((existing().createdBy == request.auth.uid || existing().leadId == request.auth.uid) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'pillar', 'status', 'leadId', 'leadName', 'targetDate', 'updatedAt'])) ||
+          (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+        );
+      allow delete: if isValidId(projectId) && (isAdmin() || (isVerifiedUser() && existing().createdBy == request.auth.uid));
+
+      // Project Comments (Master Gate on parent project)
+      match /comments/{commentId} {
+        allow get: if isValidId(projectId) && isValidId(commentId) && isVerifiedUser()
+          && exists(/databases/$(database)/documents/projects/$(projectId));
+        allow list: if isVerifiedUser() && resource.data.orgId == 'shapes-and-patterns-npo' && resource.data.projectId == projectId;
+        allow create: if isValidId(projectId) && isValidId(commentId)
+          && isVerifiedUser()
+          && isValidProjectComment(incoming())
+          && incoming().id == commentId
+          && incoming().projectId == projectId
+          && incoming().authorId == request.auth.uid
+          && incoming().createdAt == request.time
+          && get(/databases/$(database)/documents/projects/$(projectId)).data.orgId == 'shapes-and-patterns-npo';
+        allow update: if false;
+        allow delete: if isValidId(projectId) && isValidId(commentId)
+          && (isAdmin() || (isVerifiedUser() && existing().authorId == request.auth.uid));
+      }
+    }
+
+    // Collaborative Tasks (Parent existence enforced on create)
+    match /tasks/{taskId} {
+      allow get: if isValidId(taskId) && isVerifiedUser();
+      allow list: if isVerifiedUser() && resource.data.orgId == 'shapes-and-patterns-npo';
+      allow create: if isValidId(taskId)
+        && isVerifiedUser()
+        && isValidTask(incoming())
+        && incoming().id == taskId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/projects/$(incoming().projectId));
+      allow update: if isValidId(taskId)
+        && isVerifiedUser()
+        && isValidTask(incoming())
+        && incoming().id == existing().id
+        && incoming().orgId == existing().orgId
+        && incoming().projectId == existing().projectId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (existing().status != 'completed' || isAdmin())
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'pillar', 'status', 'priority', 'assigneeId', 'assigneeName', 'dueDate', 'updatedAt'])) ||
+          (existing().createdBy == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'pillar', 'status', 'priority', 'assigneeId', 'assigneeName', 'dueDate', 'updatedAt'])) ||
+          (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'assigneeId', 'assigneeName', 'updatedAt']))
+        );
+      allow delete: if isValidId(taskId) && (isAdmin() || (isVerifiedUser() && existing().createdBy == request.auth.uid));
+
+      // Task Comments (Master Gate on parent task)
+      match /comments/{commentId} {
+        allow get: if isValidId(taskId) && isValidId(commentId) && isVerifiedUser()
+          && exists(/databases/$(database)/documents/tasks/$(taskId));
+        allow list: if isVerifiedUser() && resource.data.orgId == 'shapes-and-patterns-npo' && resource.data.taskId == taskId;
+        allow create: if isValidId(taskId) && isValidId(commentId)
+          && isVerifiedUser()
+          && isValidTaskComment(incoming())
+          && incoming().id == commentId
+          && incoming().taskId == taskId
+          && incoming().authorId == request.auth.uid
+          && incoming().createdAt == request.time
+          && get(/databases/$(database)/documents/tasks/$(taskId)).data.orgId == 'shapes-and-patterns-npo';
+        allow update: if false;
+        allow delete: if isValidId(taskId) && isValidId(commentId)
+          && (isAdmin() || (isVerifiedUser() && existing().authorId == request.auth.uid));
+      }
+    }
+
+    // Collaborative Pattern Studio Boards
+    match /patterns/{patternId} {
+      allow get: if isValidId(patternId) && isVerifiedUser();
+      allow list: if isVerifiedUser() && resource.data.orgId == 'shapes-and-patterns-npo';
+      allow create: if isValidId(patternId)
+        && isVerifiedUser()
+        && isValidPatternBoard(incoming())
+        && incoming().id == patternId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(patternId)
+        && isVerifiedUser()
+        && isValidPatternBoard(incoming())
+        && incoming().id == existing().id
+        && incoming().orgId == existing().orgId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'pillar', 'cols', 'rows', 'tiles', 'lastEditedByName', 'updatedAt'])) ||
+          (existing().createdBy == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'pillar', 'cols', 'rows', 'tiles', 'lastEditedByName', 'updatedAt'])) ||
+          (incoming().diff(existing()).affectedKeys().hasOnly(['tiles', 'lastEditedByName', 'updatedAt']))
+        );
+      allow delete: if isValidId(patternId) && (isAdmin() || (isVerifiedUser() && existing().createdBy == request.auth.uid));
+    }
+
+    // Team Collaboration Channels
+    match /channels/{channelId} {
+      allow get: if isValidId(channelId) && isVerifiedUser();
+      allow list: if isVerifiedUser() && resource.data.orgId == 'shapes-and-patterns-npo';
+      allow create: if isValidId(channelId)
+        && isVerifiedUser()
+        && isValidChannel(incoming())
+        && incoming().id == channelId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(channelId)
+        && isAdmin()
+        && isValidChannel(incoming())
+        && incoming().id == existing().id
+        && incoming().orgId == existing().orgId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'topic', 'pillar']);
+      allow delete: if isValidId(channelId) && isAdmin();
+
+      // Channel Messages (Master Gate on parent channel)
+      match /messages/{messageId} {
+        allow get: if isValidId(channelId) && isValidId(messageId) && isVerifiedUser()
+          && exists(/databases/$(database)/documents/channels/$(channelId));
+        allow list: if isVerifiedUser() && resource.data.orgId == 'shapes-and-patterns-npo' && resource.data.channelId == channelId;
+        allow create: if isValidId(channelId) && isValidId(messageId)
+          && isVerifiedUser()
+          && isValidChannelMessage(incoming())
+          && incoming().id == messageId
+          && incoming().channelId == channelId
+          && incoming().authorId == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/channels/$(channelId)).data.orgId == 'shapes-and-patterns-npo';
+        allow update: if isValidId(channelId) && isValidId(messageId)
+          && isVerifiedUser()
+          && isValidChannelMessage(incoming())
+          && incoming().id == existing().id
+          && incoming().channelId == existing().channelId
+          && incoming().orgId == existing().orgId
+          && incoming().authorId == existing().authorId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (existing().authorId == request.auth.uid || isAdmin())
+          && incoming().diff(existing()).affectedKeys().hasOnly(['body', 'updatedAt']);
+        allow delete: if isValidId(channelId) && isValidId(messageId)
+          && (isAdmin() || (isVerifiedUser() && existing().authorId == request.auth.uid));
+      }
+    }
+
+    // Shared Resources & Toolkits
+    match /resources/{resourceId} {
+      allow get: if isValidId(resourceId) && isVerifiedUser();
+      allow list: if isVerifiedUser() && resource.data.orgId == 'shapes-and-patterns-npo';
+      allow create: if isValidId(resourceId)
+        && isVerifiedUser()
+        && isValidResourceItem(incoming())
+        && incoming().id == resourceId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(resourceId)
+        && isVerifiedUser()
+        && isValidResourceItem(incoming())
+        && incoming().id == existing().id
+        && incoming().orgId == existing().orgId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (isAdmin() || existing().createdBy == request.auth.uid)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'summary', 'pillar', 'resourceType', 'url', 'updatedAt']);
+      allow delete: if isValidId(resourceId) && (isAdmin() || (isVerifiedUser() && existing().createdBy == request.auth.uid));
+    }
+
+    // User-scoped Notifications (Task assignments & comment mentions)
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isVerifiedUser()
+        && (resource.data.recipientId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser()
+        && resource.data.orgId == 'shapes-and-patterns-npo'
+        && resource.data.recipientId == request.auth.uid;
+      allow create: if isValidId(notificationId)
+        && isVerifiedUser()
+        && isValidNotification(incoming())
+        && incoming().id == notificationId
+        && incoming().senderId == request.auth.uid
+        && incoming().read == false
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (incoming().taskId.size() > 0 && exists(/databases/$(database)/documents/tasks/$(incoming().taskId))) ||
+          (incoming().projectId.size() > 0 && exists(/databases/$(database)/documents/projects/$(incoming().projectId)))
+        );
+      allow update: if isValidId(notificationId)
+        && isVerifiedUser()
+        && isValidNotification(incoming())
+        && (existing().recipientId == request.auth.uid || isAdmin())
+        && incoming().id == existing().id
+        && incoming().orgId == existing().orgId
+        && incoming().recipientId == existing().recipientId
+        && incoming().senderId == existing().senderId
+        && incoming().senderName == existing().senderName
+        && incoming().type == existing().type
+        && incoming().title == existing().title
+        && incoming().message == existing().message
+        && incoming().projectId == existing().projectId
+        && incoming().taskId == existing().taskId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['read', 'updatedAt']);
+      allow delete: if isValidId(notificationId) && isVerifiedUser()
+        && (existing().recipientId == request.auth.uid || isAdmin());
+    }
+  }
+}

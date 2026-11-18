@@ -1,0 +1,6 @@
+{
+  "name": "Shapes and Patterns NPO",
+  "description": "Team collaboration workspace for Shapes and Patterns NPO — Learn. Create. Empower.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

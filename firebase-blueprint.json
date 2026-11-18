@@ -1,0 +1,724 @@
+{
+  "entities": {
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Private user PII and preferences isolated from public directory",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "notificationDigest": {
+          "type": "string",
+          "enum": ["daily", "weekly", "none"]
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "notificationDigest", "updatedAt"]
+    },
+    "MemberProfile": {
+      "title": "MemberProfile",
+      "description": "Public Shapes and Patterns NPO team directory profile without PII",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "lead", "educator", "volunteer"]
+        },
+        "pillarFocus": {
+          "type": "string",
+          "enum": ["learn", "create", "empower", "operations"]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "bio": {
+          "type": "string",
+          "maxLength": 280
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "orgId",
+        "displayName",
+        "role",
+        "pillarFocus",
+        "joinedAt",
+        "updatedAt"
+      ]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Collaborative NPO initiative across Learn, Create, or Empower pillars",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "pillar": {
+          "type": "string",
+          "enum": ["learn", "create", "empower"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["planning", "active", "completed"]
+        },
+        "leadId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "leadName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "targetDate": {
+          "type": "string",
+          "maxLength": 20,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "title",
+        "description",
+        "pillar",
+        "status",
+        "leadId",
+        "leadName",
+        "targetDate",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Action item linked to a collaborative NPO project",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "projectId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 140
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "pillar": {
+          "type": "string",
+          "enum": ["learn", "create", "empower"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["planned", "in_progress", "review", "completed"]
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "assigneeId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]*$"
+        },
+        "assigneeName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "dueDate": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "projectId",
+        "title",
+        "description",
+        "pillar",
+        "status",
+        "priority",
+        "assigneeId",
+        "assigneeName",
+        "dueDate",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TaskComment": {
+      "title": "TaskComment",
+      "description": "Discussion comment on a task",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "taskId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "authorId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "taskId", "orgId", "authorId", "authorName", "body", "createdAt"]
+    },
+    "PatternBoard": {
+      "title": "PatternBoard",
+      "description": "Collaborative geometric pattern canvas board for workshop templates",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "pillar": {
+          "type": "string",
+          "enum": ["learn", "create", "empower"]
+        },
+        "cols": {
+          "type": "number"
+        },
+        "rows": {
+          "type": "number"
+        },
+        "tiles": {
+          "type": "array",
+          "description": "Bounded array of up to 96 placed geometric tiles"
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "lastEditedByName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "title",
+        "description",
+        "pillar",
+        "cols",
+        "rows",
+        "tiles",
+        "createdBy",
+        "lastEditedByName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Channel": {
+      "title": "Channel",
+      "description": "Team communication channel scoped to an NPO focus area",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 60
+        },
+        "topic": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "pillar": {
+          "type": "string",
+          "enum": ["learn", "create", "empower", "general"]
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "orgId", "name", "topic", "pillar", "createdBy", "createdAt"]
+    },
+    "ChannelMessage": {
+      "title": "ChannelMessage",
+      "description": "Team message within a collaboration channel",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "channelId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "authorId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "authorRole": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "channelId",
+        "orgId",
+        "authorId",
+        "authorName",
+        "authorRole",
+        "body",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ResourceItem": {
+      "title": "ResourceItem",
+      "description": "Shared curriculum guide, template, worksheet, or toolkit",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "pillar": {
+          "type": "string",
+          "enum": ["learn", "create", "empower"]
+        },
+        "resourceType": {
+          "type": "string",
+          "enum": ["guide", "template", "worksheet", "toolkit"]
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "title",
+        "summary",
+        "pillar",
+        "resourceType",
+        "url",
+        "createdBy",
+        "authorName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ProjectComment": {
+      "title": "ProjectComment",
+      "description": "Discussion comment on a project initiative",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "projectId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "authorId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "projectId", "orgId", "authorId", "authorName", "body", "createdAt"]
+    },
+    "WorkspaceNotification": {
+      "title": "WorkspaceNotification",
+      "description": "Alert for task assignments and comment mentions",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "recipientId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "type": {
+          "type": "string",
+          "enum": ["task_assigned", "comment_mention"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "projectId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]*$"
+        },
+        "taskId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]*$"
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "recipientId",
+        "senderId",
+        "senderName",
+        "type",
+        "title",
+        "message",
+        "projectId",
+        "taskId",
+        "read",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ResourceBookmark": {
+      "title": "ResourceBookmark",
+      "description": "Per-user bookmark referencing a saved team resource",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orgId": {
+          "type": "string",
+          "enum": ["shapes-and-patterns-npo"]
+        },
+        "resourceId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "userId", "orgId", "resourceId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Private user PII isolated to owner and admins"
+    },
+    "/members/{userId}": {
+      "schema": { "$ref": "#/entities/MemberProfile" },
+      "description": "Public NPO team member directory without PII"
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Collaborative NPO initiatives across Learn, Create, and Empower"
+    },
+    "/projects/{projectId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/ProjectComment" },
+      "description": "Discussion comments on a project initiative"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Tasks linked to NPO projects"
+    },
+    "/tasks/{taskId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/TaskComment" },
+      "description": "Discussion comments under a task"
+    },
+    "/patterns/{patternId}": {
+      "schema": { "$ref": "#/entities/PatternBoard" },
+      "description": "Collaborative geometric pattern canvases"
+    },
+    "/channels/{channelId}": {
+      "schema": { "$ref": "#/entities/Channel" },
+      "description": "Team collaboration channels"
+    },
+    "/channels/{channelId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChannelMessage" },
+      "description": "Real-time messages inside collaboration channels"
+    },
+    "/resources/{resourceId}": {
+      "schema": { "$ref": "#/entities/ResourceItem" },
+      "description": "Shared NPO guides, templates, worksheets, and toolkits"
+    },
+    "/users/{userId}/bookmarks/{resourceId}": {
+      "schema": { "$ref": "#/entities/ResourceBookmark" },
+      "description": "Per-user bookmarked team resources and documents"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/WorkspaceNotification" },
+      "description": "User-scoped notifications for task assignments and comment mentions"
+    }
+  }
+}
