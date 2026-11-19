@@ -10,6 +10,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { gameAudio } from '../../lib/gameAudio';
+import { roundedRectPath } from '../../lib/gameCanvas';
 
 type GameState = 'TITLE_MENU' | 'PLAYING' | 'PAUSED' | 'GAME_OVER';
 type SnakeSpeed = 'relaxed' | 'standard' | 'fast';
@@ -133,8 +134,7 @@ export function SnakeGame() {
               : '#7CA8A0';
       }
 
-      ctx.beginPath();
-      ctx.roundRect(sx, sy, sw, sh, i === 0 ? 5 : 4);
+      roundedRectPath(ctx, sx, sy, sw, sh, i === 0 ? 5 : 4);
       ctx.fill();
 
       // Eyes on head

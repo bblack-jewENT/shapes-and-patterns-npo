@@ -12,6 +12,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { gameAudio } from '../../lib/gameAudio';
+import { roundedRectPath } from '../../lib/gameCanvas';
 
 type GameState = 'TITLE_MENU' | 'PLAYING' | 'PAUSED' | 'GAME_OVER';
 type TetrominoType = 'I' | 'O' | 'T' | 'S' | 'Z' | 'J' | 'L';
@@ -151,8 +152,7 @@ function drawMiniPiece(
     for (let r = 0; r < matrix.length; r++) {
       for (let c = 0; c < matrix[r].length; c++) {
         if (!matrix[r][c]) continue;
-        ctx.beginPath();
-        ctx.roundRect(ox + c * cell + 1, oy + r * cell + 1, cell - 2, cell - 2, 3);
+        roundedRectPath(ctx, ox + c * cell + 1, oy + r * cell + 1, cell - 2, cell - 2, 3);
         ctx.fill();
       }
     }
@@ -178,6 +178,7 @@ export function TetrisGame() {
   const boardCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const nextCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const holdCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const boardTouchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const gridRef = useRef<(TetrominoType | null)[][]>(createEmptyGrid());
   const bagRef = useRef<TetrominoType[]>(createBag());
@@ -239,8 +240,7 @@ export function TetrisGame() {
             const cellType = grid[r][c];
             if (!cellType) continue;
             ctx.fillStyle = COLORS[cellType];
-            ctx.beginPath();
-            ctx.roundRect(c * cell + 1, r * cell + 1, cell - 2, cell - 2, 3.5);
+            roundedRectPath(ctx, c * cell + 1, r * cell + 1, cell - 2, cell - 2, 3.5);
             ctx.fill();
             ctx.fillStyle = 'rgba(255,255,255,0.18)';
             ctx.fillRect(c * cell + 3, r * cell + 2.5, cell - 6, 3);
@@ -265,8 +265,7 @@ export function TetrisGame() {
               const gx = active.x + c;
               const gy = ghostY + r;
               if (gy >= 0) {
-                ctx.beginPath();
-                ctx.roundRect(gx * cell + 2, gy * cell + 2, cell - 4, cell - 4, 3);
+                roundedRectPath(ctx, gx * cell + 2, gy * cell + 2, cell - 4, cell - 4, 3);
                 ctx.stroke();
               }
             }
@@ -281,8 +280,7 @@ export function TetrisGame() {
               const ay = active.y + r;
               if (ay >= 0) {
                 ctx.fillStyle = COLORS[active.type];
-                ctx.beginPath();
-                ctx.roundRect(ax * cell + 1, ay * cell + 1, cell - 2, cell - 2, 3.5);
+                roundedRectPath(ctx, ax * cell + 1, ay * cell + 1, cell - 2, cell - 2, 3.5);
                 ctx.fill();
                 ctx.fillStyle = 'rgba(255,255,255,0.22)';
                 ctx.fillRect(ax * cell + 3, ay * cell + 2.5, cell - 6, 3);
@@ -465,6 +463,37 @@ export function TetrisGame() {
     gameAudio.playMove();
   }, [gameState, renderAll, spawnNextPiece]);
 
+  const handleBoardPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== 'touch') return;
+      if (event.target instanceof Element && event.target.closest('button')) return;
+      boardTouchStartRef.current = { x: event.clientX, y: event.clientY };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    []
+  );
+
+  const handleBoardPointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const start = boardTouchStartRef.current;
+      boardTouchStartRef.current = null;
+      if (!start || gameState !== 'PLAYING') return;
+
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) {
+        rotatePiece();
+      } else if (Math.abs(dx) > Math.abs(dy)) {
+        moveHorizontal(dx > 0 ? 1 : -1);
+      } else if (dy > 0) {
+        softDrop();
+      } else {
+        hardDrop();
+      }
+    },
+    [gameState, hardDrop, moveHorizontal, rotatePiece, softDrop]
+  );
+
   const startGame = useCallback(() => {
     gridRef.current = createEmptyGrid();
     bagRef.current = createBag();
@@ -581,7 +610,7 @@ export function TetrisGame() {
               Pattern Blocks (Tetris)
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Clear horizontal lines with geometric tetrominoes · Space to hard drop
+              Tap to rotate, swipe to move or drop, or use the controls below
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -650,7 +679,14 @@ export function TetrisGame() {
 
         {/* Board + Next/Hold Side Strip */}
         <div className="flex flex-col sm:flex-row items-center sm:items-start justify-center gap-4">
-          <div className="relative w-full max-w-[260px] aspect-[1/2] rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 shrink-0">
+          <div
+            onPointerDown={handleBoardPointerDown}
+            onPointerUp={handleBoardPointerUp}
+            onPointerCancel={() => {
+              boardTouchStartRef.current = null;
+            }}
+            className="relative w-full max-w-[260px] aspect-[1/2] rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 shrink-0 touch-none"
+          >
             <canvas ref={boardCanvasRef} className="w-full h-full block" />
 
             {gameState === 'TITLE_MENU' && (
