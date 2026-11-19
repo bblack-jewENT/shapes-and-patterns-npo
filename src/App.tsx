@@ -116,22 +116,38 @@ function getAuthErrorCode(error: unknown): string | null {
 
 function getGoogleSignInErrorMessage(error: unknown): string {
   const code = getAuthErrorCode(error);
+  let message: string;
   switch (code) {
     case 'auth/operation-not-allowed':
-      return 'Google sign-in is not enabled for this Firebase project. Enable the Google provider in Firebase Authentication settings.';
+      message =
+        'Google sign-in is not enabled for this Firebase project. Enable the Google provider in Firebase Authentication settings.';
+      break;
     case 'auth/unauthorized-domain':
-      return 'This site is not authorized to use Firebase sign-in. Add its domain to Firebase Authentication’s authorized domains.';
+      {
+        const hostname =
+          typeof window === 'undefined' ? 'this site' : window.location.hostname;
+        message = `Firebase rejected sign-in from "${hostname}". Add "${hostname}" to Firebase Console > Authentication > Settings > Authorized domains (without protocol or port), then reload.`;
+      }
+      break;
     case 'auth/network-request-failed':
-      return 'Could not reach Google sign-in. Check your internet connection and try again.';
+      message =
+        'Could not reach Google sign-in. Check your internet connection and try again.';
+      break;
     case 'auth/account-exists-with-different-credential':
-      return 'An account already exists for this email with a different sign-in method. Sign in with that method first.';
+      message =
+        'An account already exists for this email with a different sign-in method. Sign in with that method first.';
+      break;
     case 'auth/popup-closed-by-user':
-      return 'Google sign-in was closed before it finished. Try again to continue.';
+      message =
+        'Google sign-in was closed before it finished. Try again to continue.';
+      break;
     default:
-      return error instanceof Error
-        ? error.message
-        : 'Unable to complete Google sign-in. Please try again.';
+      message =
+        error instanceof Error
+          ? error.message
+          : 'Unable to complete Google sign-in. Please try again.';
   }
+  return code ? `${message} (Firebase error: ${code})` : message;
 }
 
 export default function App() {

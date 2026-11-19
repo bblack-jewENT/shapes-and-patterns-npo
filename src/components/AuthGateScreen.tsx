@@ -133,7 +133,7 @@ export function AuthGateScreen({
               disabled={isSigningIn}
               className="cursor-pointer px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-[#2C3A57] hover:bg-[#222D45] dark:bg-[#3B4E73] dark:hover:bg-[#495F8B] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 rounded-lg transition-all duration-150 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2C3A57] shadow-xs"
             >
-              {isSigningIn ? 'Connecting...' : 'Continue with Google'}
+              {isSigningIn ? 'Connecting...' : 'Sign in'}
             </button>
           </div>
         </div>
@@ -193,7 +193,7 @@ export function AuthGateScreen({
                   className="cursor-pointer inline-flex items-center gap-2.5 px-6 py-3 text-sm font-semibold text-white bg-[#2C3A57] hover:bg-[#222D45] dark:bg-[#3B4E73] dark:hover:bg-[#495F8B] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 rounded-lg transition-all duration-150 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2C3A57] shadow-xs"
                 >
                   <span>
-                    {isSigningIn ? 'Connecting Account...' : 'Continue with Google'}
+                    {isSigningIn ? 'Connecting Account...' : 'Sign in'}
                   </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
@@ -207,7 +207,7 @@ export function AuthGateScreen({
                 </button>
               </div>
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                New here? Your account will be created automatically when you continue with Google.
+                New here? Your account will be created automatically when you sign in with Google.
               </p>
 
               <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-6">
