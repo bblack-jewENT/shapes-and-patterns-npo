@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Restore project dependencies",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"install"
+			],
+			"isBackground": false
+		}
+	]
+}
