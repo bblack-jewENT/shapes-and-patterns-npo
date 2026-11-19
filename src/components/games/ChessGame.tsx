@@ -10,10 +10,65 @@ import {
   Users,
 } from 'lucide-react';
 import { gameAudio } from '../../lib/gameAudio';
+import {
+  isRecord,
+  readLocalGameProgress,
+  saveLocalGameProgress,
+} from '../../lib/gameProgress';
 
 type GameState = 'TITLE_MENU' | 'PLAYING' | 'GAME_OVER';
 type OpponentMode = 'ai' | 'local';
 type BotDifficulty = 'casual' | 'club' | 'tactical';
+
+const PROGRESS_STORAGE_KEY = 'sp_npo_chess_progress_v1';
+
+interface ChessProgress {
+  version: 1;
+  gameState: GameState;
+  opponentMode: OpponentMode;
+  difficulty: BotDifficulty;
+  playerColor: Color;
+  boardFlipped: boolean;
+  moves: string[];
+  resignedBy: Color | null;
+}
+
+function isChessProgress(value: unknown): value is ChessProgress {
+  if (!isRecord(value)) return false;
+  return (
+    value.version === 1 &&
+    (value.gameState === 'TITLE_MENU' ||
+      value.gameState === 'PLAYING' ||
+      value.gameState === 'GAME_OVER') &&
+    (value.opponentMode === 'ai' || value.opponentMode === 'local') &&
+    (value.difficulty === 'casual' ||
+      value.difficulty === 'club' ||
+      value.difficulty === 'tactical') &&
+    (value.playerColor === 'w' || value.playerColor === 'b') &&
+    typeof value.boardFlipped === 'boolean' &&
+    Array.isArray(value.moves) &&
+    value.moves.length <= 2048 &&
+    value.moves.every(
+      (move) => typeof move === 'string' && move.length <= 32
+    ) &&
+    (value.resignedBy === null ||
+      value.resignedBy === 'w' ||
+      value.resignedBy === 'b')
+  );
+}
+
+function restoreChessGame(moves: string[]): Chess | null {
+  const game = new Chess();
+  try {
+    for (const move of moves) {
+      game.move(move);
+    }
+    return game;
+  } catch (error) {
+    console.error('Unable to restore the saved chess game.', error);
+    return null;
+  }
+}
 
 const PIECE_VALUES: Record<PieceSymbol, number> = {
   p: 100,
@@ -250,23 +305,51 @@ const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
 export function ChessGame() {
-  const [gameState, setGameState] = useState<GameState>('TITLE_MENU');
-  const [opponentMode, setOpponentMode] = useState<OpponentMode>('ai');
-  const [difficulty, setDifficulty] = useState<BotDifficulty>('club');
-  const [playerColor, setPlayerColor] = useState<Color>('w');
-  const [boardFlipped, setBoardFlipped] = useState(false);
+  const [savedProgress] = useState(() =>
+    readLocalGameProgress(PROGRESS_STORAGE_KEY, isChessProgress)
+  );
+  const [restoredGame] = useState(() =>
+    savedProgress ? restoreChessGame(savedProgress.moves) : null
+  );
+  const initialProgress = restoredGame ? savedProgress : null;
 
-  const [fen, setFen] = useState(() => new Chess().fen());
+  const [gameState, setGameState] = useState<GameState>(
+    () => initialProgress?.gameState || 'TITLE_MENU'
+  );
+  const [opponentMode, setOpponentMode] = useState<OpponentMode>(
+    () => initialProgress?.opponentMode || 'ai'
+  );
+  const [difficulty, setDifficulty] = useState<BotDifficulty>(
+    () => initialProgress?.difficulty || 'club'
+  );
+  const [playerColor, setPlayerColor] = useState<Color>(
+    () => initialProgress?.playerColor || 'w'
+  );
+  const [boardFlipped, setBoardFlipped] = useState(
+    () => initialProgress?.boardFlipped || false
+  );
+
+  const [fen, setFen] = useState(
+    () => restoredGame?.fen() || new Chess().fen()
+  );
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<{
     from: Square;
     to: Square;
   } | null>(null);
-  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
-  const [resignedBy, setResignedBy] = useState<Color | null>(null);
+  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(
+    () => {
+      const history = restoredGame?.history({ verbose: true }) || [];
+      const last = history[history.length - 1];
+      return last ? { from: last.from, to: last.to } : null;
+    }
+  );
+  const [resignedBy, setResignedBy] = useState<Color | null>(
+    () => initialProgress?.resignedBy || null
+  );
   const [isBotThinking, setIsBotThinking] = useState(false);
 
-  const chessRef = useRef<Chess>(new Chess());
+  const chessRef = useRef<Chess>(restoredGame || new Chess());
   const botTimerRef = useRef<number | null>(null);
 
   const clearBotTimer = useCallback(() => {
@@ -279,6 +362,27 @@ export function ChessGame() {
   useEffect(() => {
     return () => clearBotTimer();
   }, [clearBotTimer]);
+
+  useEffect(() => {
+    saveLocalGameProgress(PROGRESS_STORAGE_KEY, {
+      version: 1,
+      gameState,
+      opponentMode,
+      difficulty,
+      playerColor,
+      boardFlipped,
+      moves: chessRef.current.history(),
+      resignedBy,
+    } satisfies ChessProgress);
+  }, [
+    fen,
+    gameState,
+    opponentMode,
+    difficulty,
+    playerColor,
+    boardFlipped,
+    resignedBy,
+  ]);
 
   const startNewGame = useCallback(
     (overrideColor?: Color) => {

@@ -11,13 +11,21 @@ import {
 } from 'lucide-react';
 import { gameAudio } from '../../lib/gameAudio';
 import { roundedRectPath } from '../../lib/gameCanvas';
+import {
+  isRecord,
+  readLocalGameProgress,
+  readLocalHighScore,
+  saveLocalGameProgress,
+  saveLocalHighScore,
+} from '../../lib/gameProgress';
 
 type GameState = 'TITLE_MENU' | 'PLAYING' | 'PAUSED' | 'GAME_OVER';
 type SnakeSpeed = 'relaxed' | 'standard' | 'fast';
 type Point = { x: number; y: number };
 
 const GRID_SIZE = 20;
-const STORAGE_KEY = 'sp_npo_snake_best_v1';
+const BEST_SCORE_STORAGE_KEY = 'sp_npo_snake_best_v1';
+const PROGRESS_STORAGE_KEY = 'sp_npo_snake_progress_v1';
 
 const SPEED_MS: Record<SnakeSpeed, number> = {
   relaxed: 155,
@@ -30,6 +38,64 @@ const INITIAL_SNAKE: Point[] = [
   { x: 9, y: 10 },
   { x: 8, y: 10 },
 ];
+
+interface SnakeProgress {
+  version: 1;
+  gameState: GameState;
+  speedMode: SnakeSpeed;
+  wrapWalls: boolean;
+  score: number;
+  bestScore: number;
+  snake: Point[];
+  direction: Point;
+  nextDirection: Point;
+  food: Point;
+}
+
+function isPoint(value: unknown): value is Point {
+  if (!isRecord(value)) return false;
+  return (
+    Number.isInteger(value.x) &&
+    Number.isInteger(value.y) &&
+    Number(value.x) >= 0 &&
+    Number(value.x) < GRID_SIZE &&
+    Number(value.y) >= 0 &&
+    Number(value.y) < GRID_SIZE
+  );
+}
+
+function isDirection(value: unknown): value is Point {
+  return (
+    isPoint(value) &&
+    Math.abs(value.x) + Math.abs(value.y) === 1
+  );
+}
+
+function isSnakeProgress(value: unknown): value is SnakeProgress {
+  if (!isRecord(value)) return false;
+  return (
+    value.version === 1 &&
+    (value.gameState === 'TITLE_MENU' ||
+      value.gameState === 'PLAYING' ||
+      value.gameState === 'PAUSED' ||
+      value.gameState === 'GAME_OVER') &&
+    (value.speedMode === 'relaxed' ||
+      value.speedMode === 'standard' ||
+      value.speedMode === 'fast') &&
+    typeof value.wrapWalls === 'boolean' &&
+    Number.isSafeInteger(value.score) &&
+    Number(value.score) >= 0 &&
+    Number.isSafeInteger(value.bestScore) &&
+    Number(value.bestScore) >= 0 &&
+    Array.isArray(value.snake) &&
+    value.snake.length >= 3 &&
+    value.snake.length <= GRID_SIZE * GRID_SIZE &&
+    value.snake.every(isPoint) &&
+    isDirection(value.direction) &&
+    isDirection(value.nextDirection) &&
+    isPoint(value.food)
+  );
+}
 
 function spawnFood(snake: Point[]): Point {
   const occupied = new Set(snake.map((p) => `${p.x},${p.y}`));
@@ -46,27 +112,75 @@ function spawnFood(snake: Point[]): Point {
 }
 
 export function SnakeGame() {
-  const [gameState, setGameState] = useState<GameState>('TITLE_MENU');
-  const [speedMode, setSpeedMode] = useState<SnakeSpeed>('standard');
-  const [wrapWalls, setWrapWalls] = useState(false);
-  const [score, setScore] = useState(0);
-  const [bestScore, setBestScore] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? Number(saved) || 0 : 0;
-    } catch {
-      return 0;
-    }
-  });
-  const [snakeLength, setSnakeLength] = useState(INITIAL_SNAKE.length);
+  const [initialProgress] = useState(() =>
+    readLocalGameProgress(PROGRESS_STORAGE_KEY, isSnakeProgress)
+  );
+  const [gameState, setGameStateState] = useState<GameState>(() =>
+    initialProgress?.gameState === 'PLAYING'
+      ? 'PAUSED'
+      : initialProgress?.gameState || 'TITLE_MENU'
+  );
+  const gameStateRef = useRef(gameState);
+  const setGameState = useCallback(
+    (next: React.SetStateAction<GameState>) => {
+      const resolved =
+        typeof next === 'function' ? next(gameStateRef.current) : next;
+      gameStateRef.current = resolved;
+      setGameStateState(resolved);
+    },
+    []
+  );
+  const [speedMode, setSpeedMode] = useState<SnakeSpeed>(
+    () => initialProgress?.speedMode || 'standard'
+  );
+  const [wrapWalls, setWrapWalls] = useState(
+    () => initialProgress?.wrapWalls ?? false
+  );
+  const [score, setScore] = useState(() => initialProgress?.score || 0);
+  const [bestScore, setBestScore] = useState(() =>
+    Math.max(
+      readLocalHighScore(BEST_SCORE_STORAGE_KEY),
+      initialProgress?.bestScore || 0
+    )
+  );
+  const bestScoreRef = useRef(bestScore);
+  const [snakeLength, setSnakeLength] = useState(
+    () => initialProgress?.snake.length || INITIAL_SNAKE.length
+  );
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const snakeRef = useRef<Point[]>([...INITIAL_SNAKE]);
-  const dirRef = useRef<Point>({ x: 1, y: 0 });
-  const nextDirRef = useRef<Point>({ x: 1, y: 0 });
-  const foodRef = useRef<Point>({ x: 15, y: 10 });
-  const scoreRef = useRef(0);
+  const snakeRef = useRef<Point[]>(
+    initialProgress?.snake.map((point) => ({ ...point })) || [...INITIAL_SNAKE]
+  );
+  const dirRef = useRef<Point>(
+    initialProgress?.direction || { x: 1, y: 0 }
+  );
+  const nextDirRef = useRef<Point>(
+    initialProgress?.nextDirection || { x: 1, y: 0 }
+  );
+  const foodRef = useRef<Point>(
+    initialProgress?.food || { x: 15, y: 10 }
+  );
+  const scoreRef = useRef(score);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const persistProgress = useCallback(
+    (state = gameStateRef.current) => {
+      saveLocalGameProgress(PROGRESS_STORAGE_KEY, {
+        version: 1,
+        gameState: state,
+        speedMode,
+        wrapWalls,
+        score: scoreRef.current,
+        bestScore: bestScoreRef.current,
+        snake: snakeRef.current,
+        direction: dirRef.current,
+        nextDirection: nextDirRef.current,
+        food: foodRef.current,
+      } satisfies SnakeProgress);
+    },
+    [speedMode, wrapWalls]
+  );
 
   const drawBoard = useCallback(() => {
     const canvas = canvasRef.current;
@@ -157,7 +271,8 @@ export function SnakeGame() {
     }
 
     ctx.restore();
-  }, []);
+    persistProgress();
+  }, [persistProgress]);
 
   const startGame = useCallback(() => {
     const startSnake = [...INITIAL_SNAKE];
@@ -169,20 +284,26 @@ export function SnakeGame() {
     setScore(0);
     setSnakeLength(startSnake.length);
     setGameState('PLAYING');
+    persistProgress('PLAYING');
     gameAudio.playMove();
     requestAnimationFrame(drawBoard);
-  }, [drawBoard]);
+  }, [drawBoard, persistProgress]);
 
   const queueDirection = useCallback((dx: number, dy: number) => {
     const cur = dirRef.current;
     // Prevent 180-degree reversal
     if (cur.x === -dx && cur.y === -dy) return;
     nextDirRef.current = { x: dx, y: dy };
-  }, []);
+    persistProgress();
+  }, [persistProgress]);
 
   useEffect(() => {
     drawBoard();
   }, [drawBoard, gameState]);
+
+  useEffect(() => {
+    persistProgress();
+  }, [gameState, score, bestScore, snakeLength, speedMode, wrapWalls, persistProgress]);
 
   useEffect(() => {
     if (gameState !== 'PLAYING') return;
@@ -206,6 +327,7 @@ export function SnakeGame() {
       } else if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) {
         gameAudio.playGameOver();
         setGameState('GAME_OVER');
+        persistProgress('GAME_OVER');
         return;
       }
 
@@ -214,6 +336,7 @@ export function SnakeGame() {
       if (bodyToCheck.some((seg) => seg.x === nx && seg.y === ny)) {
         gameAudio.playGameOver();
         setGameState('GAME_OVER');
+        persistProgress('GAME_OVER');
         return;
       }
 
@@ -228,15 +351,10 @@ export function SnakeGame() {
         foodRef.current = spawnFood(nextSnake);
         gameAudio.playScore();
 
-        setBestScore((prev) => {
-          const updated = Math.max(prev, nextScore);
-          try {
-            localStorage.setItem(STORAGE_KEY, String(updated));
-          } catch {
-            // ignore storage errors
-          }
-          return updated;
-        });
+        const updatedBestScore = Math.max(bestScoreRef.current, nextScore);
+        bestScoreRef.current = updatedBestScore;
+        setBestScore(updatedBestScore);
+        saveLocalHighScore(BEST_SCORE_STORAGE_KEY, updatedBestScore);
       }
 
       snakeRef.current = nextSnake;
@@ -244,7 +362,7 @@ export function SnakeGame() {
     }, tickMs);
 
     return () => window.clearInterval(timer);
-  }, [gameState, speedMode, wrapWalls, drawBoard]);
+  }, [gameState, speedMode, wrapWalls, drawBoard, persistProgress]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

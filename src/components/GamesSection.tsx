@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
 import { Crown, Gamepad2, Grid2x2, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { gameAudio } from '../lib/gameAudio';
+import {
+  readLocalGameProgress,
+  saveLocalGameProgress,
+} from '../lib/gameProgress';
 import { ChessGame } from './games/ChessGame';
 import { SnakeGame } from './games/SnakeGame';
 import { TetrisGame } from './games/TetrisGame';
 
 type GameTab = 'snake' | 'chess' | 'tetris';
+const ACTIVE_GAME_STORAGE_KEY = 'sp_npo_active_game_v1';
+
+function isGameTab(value: unknown): value is GameTab {
+  return value === 'snake' || value === 'chess' || value === 'tetris';
+}
 
 const GAME_OPTIONS: Array<{
   id: GameTab;
@@ -34,8 +43,15 @@ const GAME_OPTIONS: Array<{
 ];
 
 export function GamesSection() {
-  const [activeGame, setActiveGame] = useState<GameTab>('snake');
+  const [activeGame, setActiveGame] = useState<GameTab>(
+    () => readLocalGameProgress(ACTIVE_GAME_STORAGE_KEY, isGameTab) || 'snake'
+  );
   const [isMuted, setIsMuted] = useState(() => gameAudio.muted);
+
+  function handleSelectGame(game: GameTab) {
+    setActiveGame(game);
+    saveLocalGameProgress(ACTIVE_GAME_STORAGE_KEY, game);
+  }
 
   function handleToggleMute() {
     const next = !isMuted;
@@ -60,7 +76,9 @@ export function GamesSection() {
               Logic &amp; Pattern Games
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl">
-              Interactive spatial, geometric, and strategic games for after-school youth clubs, workshop warm-ups, and team breaks.
+              Interactive spatial, geometric, and strategic games for after-school
+              youth clubs, workshop warm-ups, and team breaks. Scores and
+              in-progress games are saved on this device.
             </p>
           </div>
 
@@ -94,7 +112,7 @@ export function GamesSection() {
                   role="tab"
                   type="button"
                   aria-selected={isSelected}
-                  onClick={() => setActiveGame(game.id)}
+                  onClick={() => handleSelectGame(game.id)}
                   className={`cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-md transition-all whitespace-nowrap shrink-0 ${
                     isSelected
                       ? 'bg-white dark:bg-slate-900 text-[#2B2F36] dark:text-slate-100 shadow-sm'

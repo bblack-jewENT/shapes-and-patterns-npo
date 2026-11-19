@@ -13,13 +13,21 @@ import {
 } from 'lucide-react';
 import { gameAudio } from '../../lib/gameAudio';
 import { roundedRectPath } from '../../lib/gameCanvas';
+import {
+  isRecord,
+  readLocalGameProgress,
+  readLocalHighScore,
+  saveLocalGameProgress,
+  saveLocalHighScore,
+} from '../../lib/gameProgress';
 
 type GameState = 'TITLE_MENU' | 'PLAYING' | 'PAUSED' | 'GAME_OVER';
 type TetrominoType = 'I' | 'O' | 'T' | 'S' | 'Z' | 'J' | 'L';
 
 const COLS = 10;
 const ROWS = 20;
-const STORAGE_KEY = 'sp_npo_tetris_best_v1';
+const BEST_SCORE_STORAGE_KEY = 'sp_npo_tetris_best_v1';
+const PROGRESS_STORAGE_KEY = 'sp_npo_tetris_progress_v1';
 
 const SHAPES: Record<TetrominoType, number[][]> = {
   I: [
@@ -76,6 +84,81 @@ interface ActivePiece {
   matrix: number[][];
   x: number;
   y: number;
+}
+
+interface TetrisProgress {
+  version: 1;
+  gameState: GameState;
+  grid: (TetrominoType | null)[][];
+  bag: TetrominoType[];
+  current: ActivePiece | null;
+  nextType: TetrominoType;
+  holdType: TetrominoType | null;
+  canHold: boolean;
+  score: number;
+  lines: number;
+  level: number;
+  bestScore: number;
+}
+
+function isTetrominoType(value: unknown): value is TetrominoType {
+  return typeof value === 'string' && ALL_TYPES.some((type) => type === value);
+}
+
+function isActivePiece(value: unknown): value is ActivePiece {
+  if (!isRecord(value) || !isTetrominoType(value.type)) return false;
+  return (
+    Number.isInteger(value.x) &&
+    Number.isInteger(value.y) &&
+    Number(value.x) >= -4 &&
+    Number(value.x) < COLS &&
+    Number(value.y) >= -4 &&
+    Number(value.y) < ROWS &&
+    Array.isArray(value.matrix) &&
+    value.matrix.length > 0 &&
+    value.matrix.length <= 4 &&
+    value.matrix.every(
+      (row) =>
+        Array.isArray(row) &&
+        row.length > 0 &&
+        row.length <= 4 &&
+        row.every((cell) => cell === 0 || cell === 1)
+    )
+  );
+}
+
+function isTetrisProgress(value: unknown): value is TetrisProgress {
+  if (!isRecord(value)) return false;
+  return (
+    value.version === 1 &&
+    (value.gameState === 'TITLE_MENU' ||
+      value.gameState === 'PLAYING' ||
+      value.gameState === 'PAUSED' ||
+      value.gameState === 'GAME_OVER') &&
+    Array.isArray(value.grid) &&
+    value.grid.length === ROWS &&
+    value.grid.every(
+      (row) =>
+        Array.isArray(row) &&
+        row.length === COLS &&
+        row.every((cell) => cell === null || isTetrominoType(cell))
+    ) &&
+    Array.isArray(value.bag) &&
+    value.bag.length <= ALL_TYPES.length &&
+    value.bag.every(isTetrominoType) &&
+    (value.current === null || isActivePiece(value.current)) &&
+    isTetrominoType(value.nextType) &&
+    (value.holdType === null || isTetrominoType(value.holdType)) &&
+    typeof value.canHold === 'boolean' &&
+    Number.isSafeInteger(value.score) &&
+    Number(value.score) >= 0 &&
+    Number.isSafeInteger(value.lines) &&
+    Number(value.lines) >= 0 &&
+    Number.isSafeInteger(value.level) &&
+    Number(value.level) >= 1 &&
+    Number.isSafeInteger(value.bestScore) &&
+    Number(value.bestScore) >= 0
+  );
 }
 
 function createEmptyGrid(): (TetrominoType | null)[][] {
@@ -162,33 +245,81 @@ function drawMiniPiece(
 }
 
 export function TetrisGame() {
-  const [gameState, setGameState] = useState<GameState>('TITLE_MENU');
-  const [score, setScore] = useState(0);
-  const [lines, setLines] = useState(0);
-  const [level, setLevel] = useState(1);
-  const [bestScore, setBestScore] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? Number(saved) || 0 : 0;
-    } catch {
-      return 0;
-    }
-  });
+  const [initialProgress] = useState(() =>
+    readLocalGameProgress(PROGRESS_STORAGE_KEY, isTetrisProgress)
+  );
+  const [gameState, setGameStateState] = useState<GameState>(() =>
+    initialProgress?.gameState === 'PLAYING'
+      ? 'PAUSED'
+      : initialProgress?.gameState || 'TITLE_MENU'
+  );
+  const gameStateRef = useRef(gameState);
+  const setGameState = useCallback(
+    (next: React.SetStateAction<GameState>) => {
+      const resolved =
+        typeof next === 'function' ? next(gameStateRef.current) : next;
+      gameStateRef.current = resolved;
+      setGameStateState(resolved);
+    },
+    []
+  );
+  const [score, setScore] = useState(() => initialProgress?.score || 0);
+  const [lines, setLines] = useState(() => initialProgress?.lines || 0);
+  const [level, setLevel] = useState(() => initialProgress?.level || 1);
+  const [bestScore, setBestScore] = useState(() =>
+    Math.max(
+      readLocalHighScore(BEST_SCORE_STORAGE_KEY),
+      initialProgress?.bestScore || 0
+    )
+  );
+  const bestScoreRef = useRef(bestScore);
 
   const boardCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const nextCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const holdCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const boardTouchStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  const gridRef = useRef<(TetrominoType | null)[][]>(createEmptyGrid());
-  const bagRef = useRef<TetrominoType[]>(createBag());
-  const currentRef = useRef<ActivePiece | null>(null);
-  const nextTypeRef = useRef<TetrominoType>('T');
-  const holdTypeRef = useRef<TetrominoType | null>(null);
-  const canHoldRef = useRef(true);
-  const scoreRef = useRef(0);
-  const linesRef = useRef(0);
-  const levelRef = useRef(1);
+  const gridRef = useRef<(TetrominoType | null)[][]>(
+    initialProgress?.grid.map((row) => [...row]) || createEmptyGrid()
+  );
+  const bagRef = useRef<TetrominoType[]>(
+    initialProgress?.bag ? [...initialProgress.bag] : createBag()
+  );
+  const currentRef = useRef<ActivePiece | null>(
+    initialProgress?.current
+      ? {
+          ...initialProgress.current,
+          matrix: initialProgress.current.matrix.map((row) => [...row]),
+        }
+      : null
+  );
+  const nextTypeRef = useRef<TetrominoType>(
+    initialProgress?.nextType || 'T'
+  );
+  const holdTypeRef = useRef<TetrominoType | null>(
+    initialProgress?.holdType || null
+  );
+  const canHoldRef = useRef(initialProgress?.canHold ?? true);
+  const scoreRef = useRef(score);
+  const linesRef = useRef(lines);
+  const levelRef = useRef(level);
+
+  const persistProgress = useCallback(() => {
+    saveLocalGameProgress(PROGRESS_STORAGE_KEY, {
+      version: 1,
+      gameState: gameStateRef.current,
+      grid: gridRef.current,
+      bag: bagRef.current,
+      current: currentRef.current,
+      nextType: nextTypeRef.current,
+      holdType: holdTypeRef.current,
+      canHold: canHoldRef.current,
+      score: scoreRef.current,
+      lines: linesRef.current,
+      level: levelRef.current,
+      bestScore: bestScoreRef.current,
+    } satisfies TetrisProgress);
+  }, []);
 
   const pullFromBag = useCallback((): TetrominoType => {
     if (bagRef.current.length === 0) {
@@ -295,18 +426,14 @@ export function TetrisGame() {
 
     drawMiniPiece(nextCanvasRef.current, nextTypeRef.current);
     drawMiniPiece(holdCanvasRef.current, holdTypeRef.current);
-  }, []);
+    persistProgress();
+  }, [persistProgress]);
 
   const updateBest = useCallback((candidate: number) => {
-    setBestScore((prev) => {
-      const next = Math.max(prev, candidate);
-      try {
-        localStorage.setItem(STORAGE_KEY, String(next));
-      } catch {
-        // ignore storage failures
-      }
-      return next;
-    });
+    const next = Math.max(bestScoreRef.current, candidate);
+    bestScoreRef.current = next;
+    setBestScore(next);
+    saveLocalHighScore(BEST_SCORE_STORAGE_KEY, next);
   }, []);
 
   const spawnNextPiece = useCallback(() => {
