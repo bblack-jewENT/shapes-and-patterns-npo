@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   User,
 } from 'firebase/auth';
@@ -100,6 +102,38 @@ function getInitialWorkspaceSection(): WorkspaceSection {
   return 'overview';
 }
 
+function getAuthErrorCode(error: unknown): string | null {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string'
+  ) {
+    return error.code;
+  }
+  return null;
+}
+
+function getGoogleSignInErrorMessage(error: unknown): string {
+  const code = getAuthErrorCode(error);
+  switch (code) {
+    case 'auth/operation-not-allowed':
+      return 'Google sign-in is not enabled for this Firebase project. Enable the Google provider in Firebase Authentication settings.';
+    case 'auth/unauthorized-domain':
+      return 'This site is not authorized to use Firebase sign-in. Add its domain to Firebase Authentication’s authorized domains.';
+    case 'auth/network-request-failed':
+      return 'Could not reach Google sign-in. Check your internet connection and try again.';
+    case 'auth/account-exists-with-different-credential':
+      return 'An account already exists for this email with a different sign-in method. Sign in with that method first.';
+    case 'auth/popup-closed-by-user':
+      return 'Google sign-in was closed before it finished. Try again to continue.';
+    default:
+      return error instanceof Error
+        ? error.message
+        : 'Unable to complete Google sign-in. Please try again.';
+  }
+}
+
 export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -165,6 +199,12 @@ export default function App() {
       setAuthReady(true);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    void getRedirectResult(auth).catch((error: unknown) => {
+      setAuthError(getGoogleSignInErrorMessage(error));
+    });
   }, []);
 
   useEffect(() => {
@@ -356,10 +396,21 @@ export default function App() {
     setAuthError(null);
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Unable to complete Google sign-in.';
-      setAuthError(msg);
+    } catch (error: unknown) {
+      const code = getAuthErrorCode(error);
+      if (
+        code === 'auth/popup-blocked' ||
+        code === 'auth/operation-not-supported-in-this-environment'
+      ) {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectError: unknown) {
+          setAuthError(getGoogleSignInErrorMessage(redirectError));
+        }
+      } else {
+        setAuthError(getGoogleSignInErrorMessage(error));
+      }
     } finally {
       setIsSigningIn(false);
     }
